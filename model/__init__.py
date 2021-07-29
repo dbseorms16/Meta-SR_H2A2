@@ -21,8 +21,6 @@ class Model(nn.Module):
         self.save_models = args.save_models
 
         module = import_module('model.' + args.model.lower())
-        print('module')
-        print(module)
         self.model = module.make_model(args).to(self.device)
         # if args.precision == 'half': self.model.half()
 
