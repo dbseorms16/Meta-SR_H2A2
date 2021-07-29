@@ -1,0 +1,6 @@
+*.pt
+*.png
+*.py
+*.pyc
+/benchmark
+/__pycache__
