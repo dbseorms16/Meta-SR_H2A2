@@ -3,3 +3,6 @@
 *.pyc
 /benchmark
 /__pycache__
+*.txt
+*.log
+*.pdf
