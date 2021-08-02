@@ -42,6 +42,37 @@ def get_patch(*args, patch_size=96, scale=1, multi_scale=False):
 
     return ret
 
+def get_patch_val(*args, patch_size=96, scale=1, multi_scale=False):
+    ih, iw = args[0].shape[:2]
+
+    multi_scale = True
+    if multi_scale:
+        tp = int(scale* patch_size)
+        ip = patch_size
+    else:
+        tp = int(scale* patch_size)
+        ip = patch_size
+
+    if scale==int(scale):
+        step = 1
+    elif (scale*2)== int(scale*2):
+        step = 2
+    elif (scale*5) == int(scale*5):
+        step = 5
+    else:
+        step = 10
+
+    ix = 0
+    iy = 0
+    tx, ty = int(scale * ix), int(scale * iy)
+
+    ret = [
+        args[0][iy:iy + ip, ix:ix + ip, :],
+        *[a[ty:ty + tp, tx:tx + tp, :] for a in args[1:]]
+    ]
+
+    return ret
+
 def set_channel(*args, n_channels=3):
     def _set_channel(img):
         if img.ndim == 2:

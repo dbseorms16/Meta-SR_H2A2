@@ -1,5 +1,6 @@
 import argparse
 import template
+import math
 
 parser = argparse.ArgumentParser(description='EDSR and MDSR')
 
@@ -159,6 +160,11 @@ if args.scale=='':
 else:
     args.scale = list(map(lambda x: float(x), args.scale.split('+')))
 # print(args.scale)
+
+scale = args.scale[0]
+args.int_scale = math.floor(float(scale))
+args.float_scale = float(scale - args.int_scale)
+
 if args.epochs == 0:
     args.epochs = 1e8
 

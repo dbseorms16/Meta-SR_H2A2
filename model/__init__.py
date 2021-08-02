@@ -4,6 +4,7 @@ from importlib import import_module
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
+import math
 
 class Model(nn.Module):
     def __init__(self, args, ckp):
@@ -36,19 +37,21 @@ class Model(nn.Module):
         # print(self.model, file=ckp.log_file)
 
     def forward(self, x):
-        # target = self.get_model()
+        target = self.get_model()
+        if hasattr(target, 'set_scale'):
+            target.set_scale(0)
 
-        # if self.self_ensemble and not self.training:
-        #     if self.chop:
-        #         forward_function = self.forward_chop
-        #     else:
-        #         forward_function = self.model.forward
+        if self.self_ensemble and not self.training:
+            if self.chop:
+                forward_function = self.forward_chop
+            else:
+                forward_function = self.model.forward
 
-        #     return self.forward_x8(x, forward_function)
-        # elif self.chop and not self.training:
-        #     return self.forward_chop(x)
-        # else:
-        return self.model(x)
+            return self.forward_x8(x, forward_function)
+        elif self.chop and not self.training:
+            return self.forward_chop(x)
+        else:
+            return self.model(x)
 
     def get_model(self):
         # if self.n_GPUs <= 1 or self.cpu:
@@ -111,7 +114,7 @@ class Model(nn.Module):
             print('load_model_mode=2')
 
     def forward_chop(self, x, shave=10, min_size=160000):
-        scale = self.scale[self.idx_scale]
+        scale = self.scale[0]
         n_GPUs = min(self.n_GPUs, 4)
         b, c, h, w = x.size()
         h_half, w_half = h // 2, w // 2
@@ -134,11 +137,10 @@ class Model(nn.Module):
                 for patch in lr_list
             ]
 
-        h, w = scale * h, scale * w
-        h_half, w_half = scale * h_half, scale * w_half
-        h_size, w_size = scale * h_size, scale * w_size
+        h, w = math.floor(scale * h), math.floor(scale * w)
+        h_half, w_half = math.floor(scale * h_half), math.floor(scale * w_half)
+        h_size, w_size = math.floor(scale * h_size), math.floor(scale * w_size)
         shave *= scale
-
         output = x.new(b, c, h, w)
         output[:, :, 0:h_half, 0:w_half] \
             = sr_list[0][:, :, 0:h_half, 0:w_half]

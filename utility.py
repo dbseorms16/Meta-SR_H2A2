@@ -151,7 +151,8 @@ def calc_psnr(sr, hr, scale, rgb_range, benchmark=False):
     shave = math.ceil(shave)
     valid = diff[:, :, shave:-shave, shave:-shave]
     mse = valid.pow(2).mean()
-
+    if mse == 0:
+        return mse
     return -10 * math.log10(mse)
 
     

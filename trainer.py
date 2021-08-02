@@ -125,6 +125,10 @@ class Trainer():
         
         device = torch.device('cpu' if self.args.cpu else 'cuda')
         
+        # for name, param in self.model.named_parameters():
+        #     if name.split('.')[1] != 'H2A2SR':
+        #         param.requires_grad = False
+            
         timer_data, timer_model = utility.timer(), utility.timer()
         for batch, (lr, hr, filename) in enumerate(self.loader_train):
             lr, hr = self.prepare(lr, hr)
