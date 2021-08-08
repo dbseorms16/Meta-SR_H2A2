@@ -146,8 +146,8 @@ class Trainer():
             self.optimizer.zero_grad()
             sr = self.model(lr)
             # re_sr = torch.masked_select(sr,mask.to(device))
-            re_sr = sr.contiguous().view(N,C,outH,outW)
-            loss = self.loss(re_sr, hr)
+            sr = sr.contiguous().view(N,C,outH,outW)
+            loss = self.loss(sr, hr)
             if loss.item() < self.args.skip_threshold * self.error_last:
                 loss.backward()
                 self.optimizer.step()

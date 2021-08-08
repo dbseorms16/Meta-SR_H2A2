@@ -8,27 +8,53 @@ import torch.nn as nn
 
 
 def make_model(args, parent=False):
+    print('make rdnh2a2')
     return RDNH2A2SR(args)
 
 class H2A2SR(nn.Module):
     def __init__(self, opt, num_channels=3, conv=common.default_conv):
         super(H2A2SR, self).__init__()
-        
         self.scale = opt.int_scale + opt.float_scale
         self.res_scale = opt.scale[0] / opt.int_scale
-
         self.opt = opt
-        self.n_feats = opt.n_feats
+        self.n_feats = 32
         kernel_size = 3
         act = nn.ReLU(True)
-        self.RCAB1 = common.RCAB(conv,32, kernel_size, act=act)
+        
+        rgb_mean = (0.4488, 0.4371, 0.4040)
+        rgb_std = (1.0, 1.0, 1.0)
+
+        self.RCAB1 = common.RCAB(conv, 64, kernel_size, act=act)
         self.RCAB2 = common.RCAB(conv, 64, kernel_size, act=act)
-        self.RCAB3 = common.RCAB(conv, 128, kernel_size, act=act)
-        self.conv1 = nn.Conv2d(num_channels, 32, kernel_size=9, padding=9 // 2)
-        self.conv2 = nn.Conv2d(256, 32, kernel_size=5, padding=5 // 2)
-        self.conv3 = nn.Conv2d(32, num_channels, kernel_size=5, padding=5 // 2)
-        self.tail = nn.Conv2d(num_channels , num_channels, kernel_size=3, padding= 3 // 2)
-    
+        self.RCAB3 = common.RCAB(conv, 64, kernel_size, act=act)
+        # self.conv2 = nn.Conv2d(, 128, kernel_size, padding=1)
+        self.conv3 = nn.Conv2d(64, 3, kernel_size, padding=1)
+        self.sub_mean = common.MeanShift(255, rgb_mean, rgb_std)
+        self.add_mean = common.MeanShift(255, rgb_mean, rgb_std, 1)
+        
+    def forward(self, x):
+        # copyx = x
+        x = self.RCAB1(x)
+        # x = torch.cat((x, copyx), 1)
+        # copyx2 = x
+        x = self.RCAB2(x)
+        # x = torch.cat((x, copyx2), 1)
+        # copyx3 = x
+        x = self.RCAB3(x)
+        # x = torch.cat((x, copyx3), 1)
+        # x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.add_mean(x)
+        return x
+
+class DCT(nn.Module):
+    def __init__(self, opt):
+        super(DCT, self).__init__()
+        self.int_scale = opt.int_scale
+        self.float_scale = opt.float_scale
+        self.scale = self.int_scale + self.float_scale
+        self.res_scale = self.scale / self.int_scale
+
     def dct_2d(self, x, norm=None):
         X1 = self.dct(x, norm=norm)
         X2 = self.dct(X1.transpose(-1, -2), norm=norm)
@@ -121,28 +147,14 @@ class H2A2SR(nn.Module):
         return x.view(*x_shape)
 
     def forward(self, x):
-
         N, C, H, W = x.size()
         outH, outW = int(H*self.res_scale), int(W*self.res_scale)
         x = self.dct_2d(x)
+        # x = x[:, :, 0:int(H*self.scale), 0:int(W*self.scale)]
         zeroPad2d = nn.ZeroPad2d((0,int(outW - W), 0, int(outH - H))).to('cuda:0')
         x = zeroPad2d(x)
         x = self.idct_2d(x)
-        x = self.conv1(x)
-        copyx = x
-        x = self.RCAB1(x)
-        x = torch.cat((x, copyx), 1)
-        x = self.RCAB2(x)
-        copyx2 = x
-        x = torch.cat((x, copyx2), 1)
-        x = self.RCAB3(x)
-        copyx3 = x
-        x = torch.cat((x, copyx3), 1)
-        x = self.conv2(x)
-        x = self.conv3(x)
-        x = self.tail(x)
         return x
-
 
 class RDB_Conv(nn.Module):
     def __init__(self, inChannels, growRate, kSize=3):
@@ -184,6 +196,7 @@ class RDNH2A2SR(nn.Module):
         kSize = args.RDNkSize
 
         self.H2A2SR = H2A2SR(args)
+        self.DCT = DCT(args)
         # number of RDB blocks, conv layers, out channels
         self.D, C, G = {
             'A': (20, 6, 32),
@@ -218,7 +231,7 @@ class RDNH2A2SR(nn.Module):
             self.UPNet = nn.Sequential(*[
                 nn.Conv2d(G0, G * r * r, kSize, padding=(kSize-1)//2, stride=1),
                 nn.PixelShuffle(r),
-                nn.Conv2d(G, args.n_colors, kSize, padding=(kSize-1)//2, stride=1)
+                # nn.Conv2d(G, args.n_colors, kSize, padding=(kSize-1)//2, stride=1)
             ])
         elif r == 4:
             self.UPNet = nn.Sequential(*[
@@ -243,8 +256,7 @@ class RDNH2A2SR(nn.Module):
 
         x = self.GFF(torch.cat(RDBs_out,1))
         x += f__1
-
         x = self.UPNet(x)
-        x = self.add_mean(x)
+        x = self.DCT(x)
         x = self.H2A2SR(x)
         return x
