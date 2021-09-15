@@ -1,6 +1,6 @@
 import os
 from importlib import import_module
-import math
+
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
@@ -35,11 +35,11 @@ class Model(nn.Module):
         )
         print(self.model, file=ckp.log_file)
 
-    def forward(self, x):
-        # self.idx_scale = idx_scale
-        # target = self.get_model()
-        # if hasattr(target, 'set_scale'):
-        #     target.set_scale(idx_scale)
+    def forward(self, x, idx_scale, pos_mat, outH, outW):
+        self.idx_scale = idx_scale
+        target = self.get_model()
+        if hasattr(target, 'set_scale'):
+            target.set_scale(idx_scale)
 
         if self.self_ensemble and not self.training:
             if self.chop:
@@ -47,11 +47,11 @@ class Model(nn.Module):
             else:
                 forward_function = self.model.forward
 
-            return self.forward_x8(x, forward_function)
+            return self.forward_x8(x, forward_function, outH, outW)
         elif self.chop and not self.training:
-            return self.forward_chop(x)
+            return self.forward_chop(x, outH, outW)
         else:
-            return self.model(x)
+            return self.model(x,pos_mat, outH, outW)
 
     def get_model(self):
         if self.n_GPUs <= 1 or self.cpu:
@@ -113,7 +113,7 @@ class Model(nn.Module):
             )
             print('load_model_mode=2')
 
-    def forward_chop(self, x, shave=10, min_size=160000):
+    def forward_chop(self, x, outH, outW, shave=10, min_size=160000):
         scale = self.scale[self.idx_scale]
         n_GPUs = min(self.n_GPUs, 4)
         b, c, h, w = x.size()
@@ -133,13 +133,13 @@ class Model(nn.Module):
                 sr_list.extend(sr_batch.chunk(n_GPUs, dim=0))
         else:
             sr_list = [
-                self.forward_chop(patch, shave=shave, min_size=min_size) \
+                self.forward_chop(patch, outH, outW, shave=shave, min_size=min_size) \
                 for patch in lr_list
             ]
 
-        h, w = math.floor(scale * h), math.floor(scale * w)
-        h_half, w_half = math.floor(scale * h_half), math.floor(scale * w_half)
-        h_size, w_size = math.floor(scale * h_size), math.floor(scale * w_size)
+        h, w = scale * h, scale * w
+        h_half, w_half = scale * h_half, scale * w_half
+        h_size, w_size = scale * h_size, scale * w_size
         shave *= scale
 
         output = x.new(b, c, h, w)
@@ -154,7 +154,7 @@ class Model(nn.Module):
 
         return output
 
-    def forward_x8(self, x, forward_function):
+    def forward_x8(self, x, outH, outW, forward_function):
         def _transform(v, op):
             if self.precision != 'single': v = v.float()
 
@@ -175,7 +175,7 @@ class Model(nn.Module):
         for tf in 'v', 'h', 't':
             lr_list.extend([_transform(t, tf) for t in lr_list])
 
-        sr_list = [forward_function(aug) for aug in lr_list]
+        sr_list = [forward_function(aug, outH, outW) for aug in lr_list]
         for i in range(len(sr_list)):
             if i > 3:
                 sr_list[i] = _transform(sr_list[i], 't')

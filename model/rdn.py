@@ -45,7 +45,7 @@ class RDB(nn.Module):
 class RDN(nn.Module):
     def __init__(self, args):
         super(RDN, self).__init__()
-        r = 2
+        r = 3
         G0 = args.G0
         kSize = args.RDNkSize
 

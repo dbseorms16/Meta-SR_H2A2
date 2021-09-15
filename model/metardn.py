@@ -1,7 +1,3 @@
-
-# Residual Dense Network for Image Super-Resolution
-# https://arxiv.org/abs/1802.08797
-
 from model import common
 import time
 import torch
@@ -109,7 +105,7 @@ class MetaRDN(nn.Module):
 
         return x.contiguous().view(-1, C, H, W)
 
-    def forward(self, x, pos_mat):
+    def forward(self, x, pos_mat, outH, outW):
         #d1 =time.time()
         x = self.sub_mean(x)
         f__1 = self.SFENet1(x)
@@ -144,5 +140,3 @@ class MetaRDN(nn.Module):
     def set_scale(self, scale_idx):
         self.scale_idx = scale_idx
         self.scale = self.args.scale[scale_idx]
-
-

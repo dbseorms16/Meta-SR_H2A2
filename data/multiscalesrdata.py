@@ -36,7 +36,6 @@ class SRData(data.Dataset):
 
         list_hr, list_lr = self._scan()
         self.images_hr, self.images_lr = list_hr, list_lr
-
         if train:
             self.repeat \
                 = args.test_every // (len(self.images_hr) // args.batch_size)

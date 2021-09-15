@@ -8,11 +8,14 @@ from torchvision import transforms
 
 def get_patch(*args, patch_size=96, scale=1, multi_scale=False):
     ih, iw = args[0].shape[:2]
-
+    #lr size 926x637
+    #hr size 2040x1404
     multi_scale = True
     if multi_scale:
         tp = int(scale* patch_size)
+        #tp = 2.2 * 50 == 110
         ip = patch_size
+        #ip = 50
     else:
         tp = int(scale* patch_size)
         ip = patch_size
@@ -30,9 +33,10 @@ def get_patch(*args, patch_size=96, scale=1, multi_scale=False):
     else:
         step = 10
 
+    #step = 5
+    # ix = (0, (926-50)//50 ) * 50
     ix = random.randrange(0, (iw-ip)//step)*step
     iy = random.randrange(0, (ih-ip)//step) *step
-
     tx, ty = int(scale * ix), int(scale * iy)
 
     ret = [

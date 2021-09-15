@@ -3,7 +3,6 @@ import math
 import time
 import datetime
 from functools import reduce
-import imageio
 
 import matplotlib
 matplotlib.use('Agg')
@@ -125,7 +124,7 @@ class checkpoint():
         for v, p in zip(save_list, postfix):
             normalized = v[0].data.mul(255 / self.args.rgb_range)
             ndarr = normalized.byte().permute(1, 2, 0).cpu().numpy()
-            imageio.imwrite('{}{}.png'.format(filename, p), ndarr)
+            # misc.imsave('{}{}.png'.format(filename, p), ndarr)
 
 def quantize(img, rgb_range):
     pixel_range = 255 / rgb_range
@@ -151,8 +150,7 @@ def calc_psnr(sr, hr, scale, rgb_range, benchmark=False):
     shave = math.ceil(shave)
     valid = diff[:, :, shave:-shave, shave:-shave]
     mse = valid.pow(2).mean()
-    if mse == 0:
-        return mse
+
     return -10 * math.log10(mse)
 
     
@@ -237,14 +235,32 @@ def make_optimizer(args, my_model):
 
     return optimizer_function(trainable, **kwargs)
 
-def make_scheduler(args, my_optimizer):
-    if args.decay_type == 'step':
-        scheduler = lrs.StepLR(
-            my_optimizer,
-            step_size=args.lr_decay,
-            gamma=args.gamma
-            #last_epoch = args.start_epoch
-        )
-
+def make_scheduler(opt, my_optimizer):
+    scheduler = lrs.CosineAnnealingLR(
+        my_optimizer,
+        float(opt.epochs),
+        eta_min=opt.eta_min
+    )
     return scheduler
+# def make_scheduler(args, my_optimizer):
+#     if args.decay_type == 'step':
+#         scheduler = lrs.StepLR(
+#             my_optimizer,
+#             step_size=3,
+#             gamma=args.gamma
+#             #last_epoch = args.start_epoch
+#         )
+#     elif args.decay_type.find('step') >= 0:
+#         milestones = args.decay_type.split('_')
+#         milestones.pop(0)
+#         milestones = list(map(lambda x: int(x), milestones))
+#         scheduler = lrs.MultiStepLR(
+#             my_optimizer,
+#             milestones=milestones,
+#             gamma=args.gamma
+#             #last_epoch = args.start_epoch
+#         )
 
+#     scheduler.step(args.start_epoch-1)
+
+#     return scheduler

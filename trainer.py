@@ -112,23 +112,22 @@ class Trainer():
     #     return pos_mat,mask_mat ##outH*outW*2 outH=scale_int*inH , outW = scale_int *inW
 
     def train(self):
-        # self.scheduler.step()
+        self.scheduler.step()
         self.loss.step()
         epoch = self.scheduler.last_epoch + 1
-        lr = self.scheduler.get_last_lr()[0]
+        lr = self.scheduler.get_lr()[0]
 
         self.ckp.write_log(
             '[Epoch {}]\tLearning rate: {:.2e}'.format(epoch, Decimal(lr))
         )
         self.loss.start_log()
+        for name, param in self.model.named_parameters():
+            if name.split('.')[1] != 'H2A2SR' and name.split('.')[1] != 'UPNet':
+                param.requires_grad = False
         self.model.train()
         
         device = torch.device('cpu' if self.args.cpu else 'cuda')
         
-        # for name, param in self.model.named_parameters():
-        #     if name.split('.')[1] != 'H2A2SR':
-        #         param.requires_grad = False
-            
         timer_data, timer_model = utility.timer(), utility.timer()
         for batch, (lr, hr, filename) in enumerate(self.loader_train):
             lr, hr = self.prepare(lr, hr)
@@ -136,18 +135,14 @@ class Trainer():
             timer_model.tic()
             N,C,H,W = lr.size()
             _,_,outH,outW = hr.size()
-            # scale_coord_map, mask = self.input_matrix_wpn(H,W,self.args.scale[idx_scale])  ###  get the position matrix, mask
-
-            # if self.args.n_GPUs>1 and not self.args.cpu:
-            #     scale_coord_map = torch.cat([scale_coord_map]*self.args.n_GPUs,0)
-            # else:
-            #     scale_coord_map = scale_coord_map.to(device)
-            
+            # scale_coord_map, mask = self.input_matrix_wpn(H,W,self.args.scale[0])  ###  get the position matrix, mask
+            # scale_coord_map = scale_coord_map.to('cuda:0')
             self.optimizer.zero_grad()
-            sr = self.model(lr)
-            # re_sr = torch.masked_select(sr,mask.to(device))
-            sr = sr.contiguous().view(N,C,outH,outW)
+            sr = self.model(lr, 0, _, outH, outW)
+            # re_sr = torch.masked_select(sr,mask.to('cuda:0'))
+            # re_sr = re_sr.contiguous().view(N,C,outH,outW)
             loss = self.loss(sr, hr)
+            
             if loss.item() < self.args.skip_threshold * self.error_last:
                 loss.backward()
                 self.optimizer.step()
@@ -170,23 +165,20 @@ class Trainer():
 
         self.loss.end_log(len(self.loader_train))
         self.error_last = self.loss.log[-1, -1]
-        self.step()
 
-        ## save models
-        log_path = "./total_loss(training).log"
-
-        if epoch == 1:
-            lf =open(log_path, "w+")
+        if self.args.n_GPUs == 1:
+            target = self.model
         else:
-            lf = open(log_path, "a")
-        
-        lf.write(str(loss.item())+ "\n")
-        lf.close()
+            target = self.model  #.module
 
+        # torch.save(
+        #     target.state_dict(),
+        #     os.path.join(self.ckp.dir,'model', 'model_{}.pt'.format(epoch))
+        # )
+        ## save models
 
     def test(self):  
-        epoch = self.scheduler.last_epoch
-
+        epoch = self.scheduler.last_epoch + 1
         self.ckp.write_log('\nEvaluation:')
         self.ckp.add_log(torch.zeros(1, len(self.scale)))
         self.model.eval()
@@ -215,16 +207,13 @@ class Trainer():
                     # scale_coord_map, mask = self.input_matrix_wpn(H,W,self.args.scale[idx_scale])
                     #position, mask = self.pos_matrix(H,W,self.args.scale[idx_scale])
                     #print(timer_test.toc())
-                    # if self.args.n_GPUs>1 and not self.args.cpu:
-                    #     scale_coord_map = torch.cat([scale_coord_map]*self.args.n_GPUs,0)
-                    # else:
-                    #     scale_coord_map = scale_coord_map.to(device)
-
+                    # scale_coord_map = scale_coord_map.to('cuda:0')
+                    _ = 0
                     timer_test.tic()
-                    sr = self.model(lr)
+                    sr = self.model(lr, idx_scale,_, outH, outW)
                     timer_test.hold()
-                    # re_sr = torch.masked_select(sr,mask.to(device))
-                    sr = sr.contiguous().view(N,C,outH,outW)
+                    # re_sr = torch.masked_select(sr,mask.to('cuda:0'))
+                    # sr = re_sr.contiguous().view(N,C,outH,outW)
                     sr = utility.quantize(sr, self.args.rgb_range)
                     #timer_test.hold()
                     save_list = [sr]
@@ -260,17 +249,7 @@ class Trainer():
             'Total time: {:.2f}s\n'.format(timer_test.toc()), refresh=True
         )
         if not self.args.test_only:
-            self.ckp.save(self, epoch, is_best=(best[1][0] + 1 == epoch))
-        
-        log_path = "./psnr(val).log"
-
-        if epoch == 1:
-            lf =open(log_path, "w+")
-        else:
-            lf = open(log_path, "a")
-        
-        lf.write(str(eval_acc / len(self.loader_test))+ "\n")
-        lf.close()
+            self.ckp.save(self, epoch-1, is_best=(best[1][0] + 1 == epoch))
 
     def prepare(self, *args):
         device = torch.device('cpu' if self.args.cpu else 'cuda')
@@ -287,7 +266,3 @@ class Trainer():
         else:
             epoch = self.scheduler.last_epoch + 1
             return epoch >= self.args.epochs
-    
-    def step(self):
-        self.scheduler.step()
-

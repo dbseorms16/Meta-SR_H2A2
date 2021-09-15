@@ -1,7 +1,6 @@
 import argparse
 import template
 import math
-
 parser = argparse.ArgumentParser(description='EDSR and MDSR')
 
 parser.add_argument('--debug', action='store_true',
@@ -10,7 +9,7 @@ parser.add_argument('--template', default='.',
                     help='You can set various templates in option.py')
 
 # Hardware specifications
-parser.add_argument('--n_threads', type=int, default=2,
+parser.add_argument('--n_threads', type=int, default=0,
                     help='number of threads for data loading')
 parser.add_argument('--cpu', action='store_true',
                     help='use cpu only')
@@ -26,7 +25,7 @@ parser.add_argument('--dir_demo', type=str, default='../test',
                     help='demo image directory')
 parser.add_argument('--data_train', type=str, default='DIV2K',
                     help='train dataset name')
-parser.add_argument('--data_test', type=str, default='DIV2K',
+parser.add_argument('--data_test', type=str, default='Set5',
                     help='test dataset name')
 parser.add_argument('--data_range', type=str, default='1-800/801-810',
                     help='train/test data range')
@@ -86,11 +85,11 @@ parser.add_argument('--reduction', type=int, default=16,
 # Training specifications
 parser.add_argument('--reset', action='store_true',
                     help='reset the training')
-parser.add_argument('--test_every', type=int, default=1000,
+parser.add_argument('--test_every', type=int, default=100,
                     help='do test per every N batches')
 parser.add_argument('--epochs', type=int, default=1000,
                     help='number of epochs to train')
-parser.add_argument('--batch_size', type=int, default=16,
+parser.add_argument('--batch_size', type=int, default=8,
                     help='input batch size for training')
 parser.add_argument('--split_batch', type=int, default=1,
                     help='split the batch into smaller chunks')
@@ -104,7 +103,7 @@ parser.add_argument('--gan_k', type=int, default=1,
 # Optimization specifications
 parser.add_argument('--lr', type=float, default=1e-4,
                     help='learning rate')
-parser.add_argument('--lr_decay', type=int, default=200,
+parser.add_argument('--lr_decay', type=int, default=5,
                     help='learning rate decay per N epochs')
 parser.add_argument('--decay_type', type=str, default='step',
                     help='learning rate decay type')
@@ -141,11 +140,12 @@ parser.add_argument('--resume', type=int, default=0,
                     help='resume from specific checkpoint')
 parser.add_argument('--save_models', action='store_true',
                     help='save all intermediate models')
-parser.add_argument('--print_every', type=int, default=100,
+parser.add_argument('--print_every', type=int, default=10,
                     help='how many batches to wait before logging training status')
 parser.add_argument('--save_results', action='store_true',
                     help='save output results')
-
+parser.add_argument('--eta_min', type=float, default=1e-7,
+                    help='eta_min lr')
 args = parser.parse_args()
 template.set_template(args)
 
@@ -159,12 +159,12 @@ if args.scale=='':
     #print(args.scale)
 else:
     args.scale = list(map(lambda x: float(x), args.scale.split('+')))
-# print(args.scale)
 
-scale = args.scale[0]
-args.int_scale = math.floor(float(scale))
-args.float_scale = float(scale - args.int_scale)
+args.int_scale = math.floor(args.scale[0])
+args.float_scale = args.scale[0] - args.int_scale
+args.total_scale = args.scale[0]
 
+print(args.scale)
 if args.epochs == 0:
     args.epochs = 1e8
 
@@ -173,4 +173,3 @@ for arg in vars(args):
         vars(args)[arg] = True
     elif vars(args)[arg] == 'False':
         vars(args)[arg] = False
-

@@ -19,8 +19,13 @@ new_dict = {}
 #     print(k)
 #     new_name = str(k)[6:]
 #     new_dict[new_name] =  v
+a = 1
 for k, v in weight2.items():
     print(k)
+    a+=1
+    if a > 4 :
+        new_dict[k] =  v
+
 
 
 # for k, v in weight.items():
